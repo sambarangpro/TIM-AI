@@ -1,13 +1,15 @@
 /**
  * ==============================================================================
- * AI MULTI-AGENT STUDIO WORKSPACE - ORCHESTRATION ENGINE
+ * AI MULTI-AGENT STUDIO WORKSPACE - ORCHESTRATION & VIRTUAL OFFICE ENGINE
  * ==============================================================================
  * 
  * Mesin orkestrasi statis murni (Vanilla JS ES Module):
  * 1. Mengimpor AGENTS_TEAM dan WORKSPACE_CONFIG dari agents-config.js
  * 2. Mengelola Bring Your Own Key (BYOK) via LocalStorage
  * 3. Menjalankan alur kerja berantai (Sequential Handoff Pipeline) ke Gemini API
- * 4. Merender visual timeline, progres step, dan output Markdown
+ * 4. Mengontrol simulasi animasi kantor virtual (Virtual Studio Office) secara visual
+ * 5. Efek audio keyboard & handoff chimes via Web Audio API (0 dependensi file audio)
+ * 6. Merender visual timeline, progres step, dan output Markdown
  * ==============================================================================
  */
 
@@ -19,9 +21,11 @@ import { AGENTS_TEAM, WORKSPACE_CONFIG } from './agents-config.js';
 const state = {
   apiKey: localStorage.getItem(WORKSPACE_CONFIG.storageKeyApiKey) || '',
   isRunning: false,
+  isDemoRunning: false,
   abortController: null,
   currentAgentIndex: -1,
-  // Menyimpan output tiap agen: { [agentId]: { text, durationMs, usage, timestamp, status } }
+  soundEnabled: localStorage.getItem('office_sound_enabled') !== 'false',
+  // Menyimpan output tiap agen: { [agentId]: { text, durationSec, usage, timestamp, status } }
   outputs: {},
   activeTab: 'flow' // 'flow' | 'consolidated'
 };
@@ -30,6 +34,33 @@ const state = {
 // DOM ELEMENT REFERENCES
 // ==========================================
 const DOM = {
+  // Sound & Office Controls
+  btnToggleSound: document.getElementById('btn-toggle-sound'),
+  soundIcon: document.getElementById('sound-icon'),
+  soundLabel: document.getElementById('sound-label'),
+  btnDemoOffice: document.getElementById('btn-demo-office'),
+  officeStatusPill: document.getElementById('office-status-pill'),
+  conduitRunner: document.getElementById('conduit-runner'),
+  conduitPacket: document.getElementById('conduit-packet'),
+
+  // Office Room Elements
+  roomAgent1: document.getElementById('office-room-agent-1'),
+  roomAgent2: document.getElementById('office-room-agent-2'),
+  roomAgent3: document.getElementById('office-room-agent-3'),
+  roomStatusAgent1: document.getElementById('room-status-agent-1'),
+  roomStatusAgent2: document.getElementById('room-status-agent-2'),
+  roomStatusAgent3: document.getElementById('room-status-agent-3'),
+  speechBubble1: document.getElementById('speech-bubble-agent-1'),
+  speechBubble2: document.getElementById('speech-bubble-agent-2'),
+  speechBubble3: document.getElementById('speech-bubble-agent-3'),
+  avatarAura: document.getElementById('avatar-aura'),
+  handsAura: document.getElementById('hands-aura'),
+  avatarDexter: document.getElementById('avatar-dexter'),
+  handsDexter: document.getElementById('hands-dexter'),
+  avatarVance: document.getElementById('avatar-vance'),
+  handsVance: document.getElementById('hands-vance'),
+  vanceStamp: document.getElementById('vance-stamp'),
+
   // API Key Elements
   apiKeyIndicator: document.getElementById('api-key-indicator'),
   apiKeyStatusText: document.getElementById('api-key-status-text'),
@@ -100,20 +131,336 @@ Tujuan: Kampanye edukasi dan peluncuran aplikasi di media sosial (TikTok, Instag
 };
 
 // ==========================================
+// WEB AUDIO API SOUND SYNTHESIZER
+// ==========================================
+let audioCtx = null;
+let typingAudioInterval = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      audioCtx = new AudioContextClass();
+    }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+const SoundFX = {
+  // Suara ketikan mekanik halus
+  playTypingClick() {
+    if (!state.soundEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      filter.type = 'bandpass';
+      filter.frequency.value = 1000 + Math.random() * 800;
+      filter.Q.value = 3;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(400 + Math.random() * 300, ctx.currentTime);
+
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.04);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
+    } catch (e) {}
+  },
+
+  startTypingSoundLoop() {
+    if (typingAudioInterval) clearInterval(typingAudioInterval);
+    if (!state.soundEnabled) return;
+    typingAudioInterval = setInterval(() => {
+      SoundFX.playTypingClick();
+    }, 180 + Math.random() * 120);
+  },
+
+  stopTypingSoundLoop() {
+    if (typingAudioInterval) {
+      clearInterval(typingAudioInterval);
+      typingAudioInterval = null;
+    }
+  },
+
+  // Suara operan berkas (whoosh futuristic chime)
+  playHandoffWhoosh() {
+    if (!state.soundEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.35);
+
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.45);
+    } catch (e) {}
+  },
+
+  // Suara selesai & approval Vance (Triad Chord C-E-G)
+  playApprovalTrophy() {
+    if (!state.soundEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.12);
+
+        gain.gain.setValueAtTime(0.06, ctx.currentTime + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.12 + 0.6);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + idx * 0.12);
+        osc.stop(ctx.currentTime + idx * 0.12 + 0.65);
+      });
+    } catch (e) {}
+  }
+};
+
+// ==========================================
+// VIRTUAL OFFICE CONTROLLER
+// ==========================================
+const OfficeSim = {
+  // Ubah status kantor ke agen tertentu yang sedang aktif bekerja
+  setAgentWorking(agentIndex) {
+    this.resetAllRoomsState();
+    SoundFX.startTypingSoundLoop();
+
+    const agent = AGENTS_TEAM[agentIndex];
+    if (DOM.officeStatusPill) {
+      DOM.officeStatusPill.textContent = `Status: ${agent.name} Sedang Bekerja...`;
+      DOM.officeStatusPill.className = 'text-xs font-mono px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-300 border border-brand-500/30 animate-pulse';
+    }
+
+    if (agentIndex === 0) {
+      // Aura
+      DOM.roomAgent1?.classList.add('room-active-glow', 'border-indigo-500');
+      DOM.avatarAura?.classList.add('typing-avatar');
+      DOM.handsAura?.classList.add('hands-tapping');
+      if (DOM.roomStatusAgent1) {
+        DOM.roomStatusAgent1.textContent = '⚡ Sedang Menganalisis...';
+        DOM.roomStatusAgent1.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-pulse';
+      }
+      this.updateSpeechBubble(1, 'Aura', '"Sedang membedah persona target, diferensiasi UVP, dan arsitektur strategi..."');
+
+    } else if (agentIndex === 1) {
+      // Dexter
+      DOM.roomAgent2?.classList.add('room-active-glow', 'border-amber-500');
+      DOM.avatarDexter?.classList.add('typing-avatar');
+      DOM.handsDexter?.classList.add('hands-tapping');
+      if (DOM.roomStatusAgent2) {
+        DOM.roomStatusAgent2.textContent = '⚡ Sedang Meracik Copy & Prompt...';
+        DOM.roomStatusAgent2.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse';
+      }
+      this.updateSpeechBubble(2, 'Dexter', '"Menerapkan formula PAS/AIDA dan merancang prompt visual Midjourney fotorealistik..."');
+
+    } else if (agentIndex === 2) {
+      // Vance
+      DOM.roomAgent3?.classList.add('room-active-glow', 'border-emerald-500');
+      DOM.avatarVance?.classList.add('typing-avatar');
+      DOM.vanceStamp?.classList.add('stamp-active');
+      if (DOM.roomStatusAgent3) {
+        DOM.roomStatusAgent3.textContent = '⚡ Melakukan QA & Audit Akhir...';
+        DOM.roomStatusAgent3.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse';
+      }
+      this.updateSpeechBubble(3, 'Vance', '"Mengaudit keselarasan brand, memberi penilaian skor metrik, dan memoles paket eksekutif..."');
+    }
+  },
+
+  // Animasi operan berkas (handoff) antar meja agen
+  async triggerHandoff(fromIndex, toIndex) {
+    SoundFX.stopTypingSoundLoop();
+    SoundFX.playHandoffWhoosh();
+
+    const fromAgent = AGENTS_TEAM[fromIndex];
+    const toAgent = AGENTS_TEAM[toIndex];
+
+    if (DOM.officeStatusPill) {
+      DOM.officeStatusPill.textContent = `Operan: ${fromAgent.name} ➡️ ${toAgent.name}`;
+      DOM.officeStatusPill.className = 'text-xs font-mono px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse';
+    }
+
+    if (fromIndex === 0) {
+      this.updateSpeechBubble(1, 'Aura', `"Blueprint strategi rampung! Mengirim dokumen ke ${toAgent.name}..."`);
+      if (DOM.roomStatusAgent1) {
+        DOM.roomStatusAgent1.textContent = 'Selesai ✓';
+        DOM.roomStatusAgent1.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      }
+    } else if (fromIndex === 1) {
+      this.updateSpeechBubble(2, 'Dexter', `"Materi copy dan prompt siap tayang! Menyerahkan draft ke ${toAgent.name}..."`);
+      if (DOM.roomStatusAgent2) {
+        DOM.roomStatusAgent2.textContent = 'Selesai ✓';
+        DOM.roomStatusAgent2.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      }
+    }
+
+    // Tampilkan animasi berkas meluncur
+    if (DOM.conduitRunner && DOM.conduitPacket) {
+      DOM.conduitRunner.classList.remove('hidden');
+      DOM.conduitPacket.classList.add('packet-transferring');
+
+      await new Promise(res => setTimeout(res, 1600));
+
+      DOM.conduitPacket.classList.remove('packet-transferring');
+      DOM.conduitRunner.classList.add('hidden');
+    }
+
+    if (toIndex === 1) {
+      this.updateSpeechBubble(2, 'Dexter', `"Berkas dari ${fromAgent.name} diterima! Mulai merancang copy..."`);
+    } else if (toIndex === 2) {
+      this.updateSpeechBubble(3, 'Vance', `"Menerima draf lengkap dari ${fromAgent.name}! Memulai verifikasi QA..."`);
+    }
+  },
+
+  // Seluruh agen berhasil menyelesaikan tugas
+  setAllFinished() {
+    SoundFX.stopTypingSoundLoop();
+    SoundFX.playApprovalTrophy();
+
+    this.resetAllRoomsState();
+
+    if (DOM.officeStatusPill) {
+      DOM.officeStatusPill.textContent = 'Status: Seluruh Tim Selesai 🏆';
+      DOM.officeStatusPill.className = 'text-xs font-mono px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    }
+
+    // Status sukses pada seluruh ruangan
+    if (DOM.roomStatusAgent1) {
+      DOM.roomStatusAgent1.textContent = 'Selesai ✓';
+      DOM.roomStatusAgent1.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    }
+    if (DOM.roomStatusAgent2) {
+      DOM.roomStatusAgent2.textContent = 'Selesai ✓';
+      DOM.roomStatusAgent2.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    }
+    if (DOM.roomStatusAgent3) {
+      DOM.roomStatusAgent3.textContent = 'Disetujui 100% 🏆';
+      DOM.roomStatusAgent3.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    }
+
+    this.updateSpeechBubble(1, 'Aura', '"Strategi berhasil dieksekusi dengan sempurna oleh seluruh tim!"');
+    this.updateSpeechBubble(2, 'Dexter', '"Copy & visual prompts siap digunakan untuk kampanye iklan!"');
+    this.updateSpeechBubble(3, 'Vance', '"Final Deliverable disetujui! Skor QA: 10/10. Siap dipublikasikan! 🏆"');
+  },
+
+  resetAllRoomsState() {
+    [DOM.roomAgent1, DOM.roomAgent2, DOM.roomAgent3].forEach(el => {
+      el?.classList.remove('room-active-glow', 'border-indigo-500', 'border-amber-500', 'border-emerald-500');
+    });
+    DOM.avatarAura?.classList.remove('typing-avatar');
+    DOM.handsAura?.classList.remove('hands-tapping');
+    DOM.avatarDexter?.classList.remove('typing-avatar');
+    DOM.handsDexter?.classList.remove('hands-tapping');
+    DOM.avatarVance?.classList.remove('typing-avatar');
+    DOM.handsVance?.classList.remove('hands-tapping');
+    DOM.vanceStamp?.classList.remove('stamp-active');
+  },
+
+  updateSpeechBubble(roomNum, agentName, text) {
+    const bubble = roomNum === 1 ? DOM.speechBubble1 : (roomNum === 2 ? DOM.speechBubble2 : DOM.speechBubble3);
+    if (!bubble) return;
+    const textEl = bubble.querySelector('.speech-text');
+    if (textEl) {
+      textEl.textContent = text;
+    }
+    bubble.classList.remove('speech-bubble-pop');
+    void bubble.offsetWidth; // force reflow for retriggering animation
+    bubble.classList.add('speech-bubble-pop');
+  },
+
+  // Putar demo interaktif untuk melihat simulasi kantor
+  async runOfficeDemo() {
+    if (state.isRunning || state.isDemoRunning) return;
+    state.isDemoRunning = true;
+    DOM.btnDemoOffice.setAttribute('disabled', 'true');
+    DOM.btnDemoOffice.classList.add('opacity-50');
+
+    showToast('Memutar simulasi kerja kantor tim AI...', 'info');
+
+    try {
+      // Step 1: Aura
+      this.setAgentWorking(0);
+      await new Promise(r => setTimeout(r, 2800));
+
+      // Handoff Aura -> Dexter
+      await this.triggerHandoff(0, 1);
+
+      // Step 2: Dexter
+      this.setAgentWorking(1);
+      await new Promise(r => setTimeout(r, 2800));
+
+      // Handoff Dexter -> Vance
+      await this.triggerHandoff(1, 2);
+
+      // Step 3: Vance
+      this.setAgentWorking(2);
+      await new Promise(r => setTimeout(r, 2800));
+
+      // All Finished
+      this.setAllFinished();
+      showToast('🎉 Demo simulasi kantor selesai!', 'success');
+
+    } finally {
+      state.isDemoRunning = false;
+      DOM.btnDemoOffice.removeAttribute('disabled');
+      DOM.btnDemoOffice.classList.remove('opacity-50');
+    }
+  }
+};
+
+// ==========================================
 // INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   initMarkdownRenderer();
   initApiKeyUI();
+  initSoundUI();
   renderPipelineStepper();
   renderAgentOutputContainers();
   setupEventListeners();
   updateApiKeyStatusBadge();
 });
 
-/**
- * Inisialisasi parser Markdown (marked.js) dengan opsi aman dan syntax highlighting
- */
+function initSoundUI() {
+  if (state.soundEnabled) {
+    DOM.soundIcon.textContent = '🔊';
+    DOM.soundLabel.textContent = 'Suara: Aktif';
+    DOM.btnToggleSound.classList.add('border-brand-500/40', 'bg-brand-500/10');
+  } else {
+    DOM.soundIcon.textContent = '🔇';
+    DOM.soundLabel.textContent = 'Suara: Senyap';
+    DOM.btnToggleSound.classList.remove('border-brand-500/40', 'bg-brand-500/10');
+  }
+}
+
 function initMarkdownRenderer() {
   if (typeof marked !== 'undefined') {
     marked.setOptions({
@@ -133,9 +480,6 @@ function initMarkdownRenderer() {
   }
 }
 
-/**
- * Inisialisasi nilai API Key dari LocalStorage
- */
 function initApiKeyUI() {
   if (state.apiKey) {
     DOM.inputApiKey.value = state.apiKey;
@@ -145,9 +489,6 @@ function initApiKeyUI() {
   }
 }
 
-/**
- * Render visual stepper pipeline di bagian atas berdasarkan AGENTS_TEAM
- */
 function renderPipelineStepper() {
   DOM.pipelineAgentCount.textContent = AGENTS_TEAM.length;
   DOM.pipelineStepper.innerHTML = '';
@@ -182,9 +523,6 @@ function renderPipelineStepper() {
   });
 }
 
-/**
- * Render container kartu output untuk setiap agen di bawah workspace
- */
 function renderAgentOutputContainers() {
   DOM.containerSequentialOutputs.innerHTML = '';
 
@@ -303,6 +641,36 @@ function renderAgentOutputContainers() {
 // EVENT LISTENERS SETUP
 // ==========================================
 function setupEventListeners() {
+  // Audio FX Toggle
+  DOM.btnToggleSound.addEventListener('click', () => {
+    state.soundEnabled = !state.soundEnabled;
+    localStorage.setItem('office_sound_enabled', state.soundEnabled ? 'true' : 'false');
+    initSoundUI();
+    if (state.soundEnabled) {
+      SoundFX.playHandoffWhoosh();
+      showToast('Efek suara kantor diaktifkan.', 'info');
+    } else {
+      SoundFX.stopTypingSoundLoop();
+      showToast('Efek suara kantor dimatikan.', 'info');
+    }
+  });
+
+  // Demo Office Simulation Button
+  DOM.btnDemoOffice.addEventListener('click', () => {
+    OfficeSim.runOfficeDemo();
+  });
+
+  // Click on office room to smooth scroll down to that agent's card
+  DOM.roomAgent1.addEventListener('click', () => {
+    document.getElementById('output-card-agent-1')?.scrollIntoView({ behavior: 'smooth' });
+  });
+  DOM.roomAgent2.addEventListener('click', () => {
+    document.getElementById('output-card-agent-2')?.scrollIntoView({ behavior: 'smooth' });
+  });
+  DOM.roomAgent3.addEventListener('click', () => {
+    document.getElementById('output-card-agent-3')?.scrollIntoView({ behavior: 'smooth' });
+  });
+
   // API Key Modal Controls
   DOM.btnToggleKeyModal.addEventListener('click', openApiKeyModal);
   DOM.btnQuickSetupKey.addEventListener('click', openApiKeyModal);
@@ -312,7 +680,6 @@ function setupEventListeners() {
   DOM.btnClearKey.addEventListener('click', clearApiKey);
   DOM.btnToggleKeyVisibility.addEventListener('click', toggleKeyVisibility);
 
-  // Close modal when clicking on backdrop
   DOM.modalApiKey.addEventListener('click', (e) => {
     if (e.target === DOM.modalApiKey) closeApiKeyModal();
   });
@@ -515,7 +882,8 @@ async function startPipeline(startIndex = 0) {
       state.currentAgentIndex = i;
       const currentAgent = AGENTS_TEAM[i];
 
-      // Update UI Stepper & Card ke status "Working"
+      // Sinkronisasi Simulasi Kantor Virtual & Stepper
+      OfficeSim.setAgentWorking(i);
       updateStepperAgentState(currentAgent.id, 'working');
       updateCardAgentState(currentAgent.id, 'working');
 
@@ -559,8 +927,15 @@ async function startPipeline(startIndex = 0) {
 
         showToast(`✅ ${currentAgent.name} (${currentAgent.role}) selesai!`, 'success');
 
+        // Jika masih ada agen berikutnya, jalankan animasi operan berkas (handoff)
+        if (i < AGENTS_TEAM.length - 1 && state.isRunning) {
+          await OfficeSim.triggerHandoff(i, i + 1);
+        }
+
       } catch (agentError) {
         clearInterval(timerInterval);
+        SoundFX.stopTypingSoundLoop();
+
         if (agentError.name === 'AbortError') {
           updateStepperAgentState(currentAgent.id, 'waiting');
           updateCardAgentState(currentAgent.id, 'idle');
@@ -580,12 +955,16 @@ async function startPipeline(startIndex = 0) {
       DOM.pipelineStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
       DOM.btnExportAllMd.removeAttribute('disabled');
       
+      // Simulasi kantor selesai & approval
+      OfficeSim.setAllFinished();
+
       // Render paket final terpadu
       renderConsolidatedOutput();
       showToast('🎉 Seluruh tim agen berhasil menyelesaikan kampanye!', 'success');
     }
 
   } catch (error) {
+    SoundFX.stopTypingSoundLoop();
     if (error.name === 'AbortError') {
       DOM.pipelineStatusBadge.textContent = 'Status: Dihentikan Pengguna';
       DOM.pipelineStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30';
@@ -610,6 +989,8 @@ function stopPipeline() {
   if (state.abortController) {
     state.abortController.abort();
   }
+  SoundFX.stopTypingSoundLoop();
+  OfficeSim.resetAllRoomsState();
   state.isRunning = false;
 }
 
@@ -650,12 +1031,6 @@ function buildSequentialPrompt(initialBrief, currentAgentIndex) {
 
 /**
  * Panggilan langsung ke Gemini REST API via fetch
- * Sesuai spesifikasi payload:
- * {
- *   system_instruction: { parts: [{ text: agent.systemPrompt }] },
- *   contents: [{ role: "user", parts: [{ text: ... }] }],
- *   generationConfig: { temperature: 0.7 }
- * }
  */
 async function callGeminiAPI(agent, promptText, abortSignal) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${agent.model}:generateContent?key=${encodeURIComponent(state.apiKey)}`;
@@ -870,6 +1245,10 @@ function resetWorkspace() {
     DOM.briefCharCount.textContent = '0 karakter';
     state.outputs = {};
     resetUIOutputs();
+    OfficeSim.resetAllRoomsState();
+    OfficeSim.updateSpeechBubble(1, 'Aura', '"Halo! Tuliskan brief produk Anda, saya siap membedah strategi pasarnya."');
+    OfficeSim.updateSpeechBubble(2, 'Dexter', '"Menunggu berkas strategi dari Aura untuk meracik copy iklan & prompt AI..."');
+    OfficeSim.updateSpeechBubble(3, 'Vance', '"Saya akan mengaudit kualitas, memberi penilaian metrik, dan menyempurnakan paket final."');
     DOM.pipelineStatusBadge.textContent = 'Status: Menunggu Brief';
     DOM.pipelineStatusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-surface-800 text-slate-400 font-normal';
     showToast('Workspace berhasil dibersihkan.', 'info');
