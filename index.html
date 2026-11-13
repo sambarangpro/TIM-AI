@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Multi-Agent Studio Workspace | Serverless Orchestrator</title>
+  <meta name="description" content="Workspace Orkestrasi Multi-Agen AI berbasis Web Statis Murni menggunakan Google Gemini API. Siap deploy langsung ke GitHub Pages.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%22 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            surface: {
+              900: '#090d16',
+              850: '#0d1322',
+              800: '#131b2e',
+              750: '#18223a',
+              700: '#1f2d4d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Marked.js for Markdown Rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Highlight.js for Code Highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+  <!-- Custom Styles for Scrollbar & Markdown Content -->
+  <style>
+    /* Custom Smooth Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2d4d;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+
+    /* Markdown Styling in Outputs */
+    .markdown-body {
+      color: #e2e8f0;
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+      color: #ffffff;
+      font-weight: 700;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .markdown-body h1 { font-size: 1.4rem; border-bottom: 1px solid #1f2d4d; padding-bottom: 0.4rem; }
+    .markdown-body h2 { font-size: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.3rem; }
+    .markdown-body h3 { font-size: 1.1rem; color: #a5b4fc; }
+    .markdown-body p { margin-bottom: 0.85rem; }
+    .markdown-body ul, .markdown-body ol {
+      margin-left: 1.5rem;
+      margin-bottom: 0.85rem;
+    }
+    .markdown-body ul { list-style-type: disc; }
+    .markdown-body ol { list-style-type: decimal; }
+    .markdown-body li { margin-bottom: 0.35rem; }
+    .markdown-body blockquote {
+      border-left: 4px solid #6366f1;
+      padding-left: 1rem;
+      margin: 1rem 0;
+      color: #94a3b8;
+      font-style: italic;
+      background: rgba(99, 102, 241, 0.05);
+      border-radius: 0 0.375rem 0.375rem 0;
+      padding: 0.5rem 1rem;
+    }
+    .markdown-body code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: #18223a;
+      color: #f43f5e;
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.25rem;
+    }
+    .markdown-body pre {
+      background: #090d16 !important;
+      border: 1px solid #1f2d4d;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .markdown-body pre code {
+      background: transparent !important;
+      color: inherit;
+      padding: 0;
+    }
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    .markdown-body th, .markdown-body td {
+      border: 1px solid #1f2d4d;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    .markdown-body th {
+      background: #131b2e;
+      color: #f8fafc;
+    }
+    .markdown-body hr {
+      border: 0;
+      border-top: 1px solid #1f2d4d;
+      margin: 1.5rem 0;
+    }
+
+    /* Pulse animation for running agent indicator */
+    @keyframes subtle-glow {
+      0%, 100% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
+      50% { box-shadow: 0 0 25px rgba(99, 102, 241, 0.45); }
+    }
+    .agent-active-glow {
+      animation: subtle-glow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-surface-900 text-slate-100 min-h-screen font-sans flex flex-col selection:bg-brand-500 selection:text-white">
+
+  <!-- ==================== TOP NAVIGATION BAR ==================== -->
+  <header class="border-b border-surface-750 bg-surface-850/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Branding -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">AI Multi-Agent Studio</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 font-mono">v1.0 • Serverless</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Orkestrasi Tim AI Berantai (Sequential Handoff) via Google Gemini API</p>
+        </div>
+      </div>
+
+      <!-- Header Action Controls -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        
+        <!-- API Key Status Badge / Trigger Button -->
+        <button id="btn-toggle-key-modal" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 bg-surface-800 hover:bg-surface-750 border-surface-700 text-slate-200">
+          <span id="api-key-indicator" class="w-2 h-2 rounded-full bg-rose-500"></span>
+          <span id="api-key-status-text">API Key Belum Diisi</span>
+          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        </button>
+
+        <!-- View Agents Info Button -->
+        <button id="btn-inspect-team" title="Lihat Konfigurasi Tim Agen" class="p-2 rounded-lg bg-surface-800 hover:bg-surface-750 border border-surface-700 text-slate-300 hover:text-white transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </button>
+
+        <!-- GitHub / Deployment Guide Link -->
+        <a href="#github-deploy-info" class="p-2 rounded-lg bg-surface-800 hover:bg-surface-750 border border-surface-700 text-slate-300 hover:text-white transition" title="Panduan Deploy GitHub Pages">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+        </a>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINER ==================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- BYOK API KEY BANNER (Shown if API key is not yet set) -->
+    <div id="api-key-alert" class="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-start space-x-3">
+        <svg class="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div class="text-xs sm:text-sm">
+          <span class="font-semibold text-amber-300">Google Gemini API Key Diperlukan:</span>
+          Aplikasi ini berjalan 100% di browser Anda (Serverless). Masukkan API Key Anda untuk mulai menjalankan alur orkestrasi tim AI.
+        </div>
+      </div>
+      <button id="btn-quick-setup-key" class="shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-400 text-slate-950 rounded-lg hover:bg-amber-300 transition shadow">
+        Atur API Key Sekarang
+      </button>
+    </div>
+
+    <!-- ==================== TOP: PIPELINE TEAM VISUALIZER ==================== -->
+    <section class="bg-surface-850 rounded-2xl border border-surface-750 p-5 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-bold tracking-wide uppercase text-slate-300 flex items-center space-x-2">
+            <span>Rantai Kerja Tim Agen (Sequential Pipeline)</span>
+            <span class="text-xs px-2 py-0.5 rounded bg-surface-750 text-slate-400 normal-case font-normal font-mono">Diatur via agents-config.js</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Setiap agen menerima konteks awal proyek ditambah seluruh output dari agen sebelumnya secara otomatis.</p>
+        </div>
+        <div class="text-xs text-slate-400 font-mono hidden md:block">
+          Total Agen: <span id="pipeline-agent-count" class="font-bold text-white">3</span>
+        </div>
+      </div>
+
+      <!-- Agent Step Cards Flow Container -->
+      <div id="pipeline-stepper" class="grid grid-cols-1 md:grid-cols-3 gap-3 relative">
+        <!-- Will be populated dynamically by app.js based on AGENTS_TEAM -->
+      </div>
+    </section>
+
+    <!-- ==================== WORKSPACE WORKFLOW: INPUT BRIEF ==================== -->
+    <section class="bg-surface-850 rounded-2xl border border-surface-750 p-5 shadow-xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <label for="project-brief" class="text-sm font-semibold text-slate-200 flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+          <span>Brief Awal Proyek / Ide Utama</span>
+        </label>
+        
+        <!-- Quick Sample Presets -->
+        <div class="flex items-center space-x-1.5 overflow-x-auto py-1 text-xs">
+          <span class="text-slate-400 text-[11px] whitespace-nowrap">Template Cepat:</span>
+          <button class="preset-btn px-2.5 py-1 rounded-md bg-surface-800 hover:bg-surface-700 text-slate-300 border border-surface-700 transition" data-preset="coffee">
+            ☕ Kopi Cold Brew
+          </button>
+          <button class="preset-btn px-2.5 py-1 rounded-md bg-surface-800 hover:bg-surface-700 text-slate-300 border border-surface-700 transition" data-preset="saas">
+            🚀 SaaS AI DevTools
+          </button>
+          <button class="preset-btn px-2.5 py-1 rounded-md bg-surface-800 hover:bg-surface-700 text-slate-300 border border-surface-700 transition" data-preset="fintech">
+            💳 Fintech Gen-Z
+          </button>
+        </div>
+      </div>
+
+      <!-- Brief Textarea -->
+      <div class="relative">
+        <textarea id="project-brief" rows="4" 
+          placeholder="Tuliskan brief proyek, tujuan kampanye, target audiens, dan nilai unik produk Anda di sini..."
+          class="w-full bg-surface-900 border border-surface-700 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition leading-relaxed"></textarea>
+        <div class="flex items-center justify-between px-2 pt-2 text-xs text-slate-500">
+          <span id="brief-char-count">0 karakter</span>
+          <span class="italic">Tips: Semakin spesifik detail produk Anda, semakin tajam hasil output seluruh tim agen.</span>
+        </div>
+      </div>
+
+      <!-- Action Control Buttons -->
+      <div class="mt-4 pt-4 border-t border-surface-750 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center space-x-3">
+          <!-- Run Pipeline Button -->
+          <button id="btn-run-pipeline" class="relative group inline-flex items-center justify-center px-6 py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-brand-600 via-indigo-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-surface-900 shadow-lg shadow-brand-500/25 transition-all duration-200">
+            <span class="flex items-center space-x-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Jalankan Orkestrasi Agen</span>
+            </span>
+          </button>
+
+          <!-- Abort / Stop Button (Hidden when idle) -->
+          <button id="btn-stop-pipeline" class="hidden px-4 py-2.5 rounded-xl font-semibold text-sm text-rose-300 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 transition flex items-center space-x-2">
+            <svg class="w-4 h-4 animate-spin text-rose-400" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Hentikan Proses</span>
+          </button>
+        </div>
+
+        <!-- Secondary Controls -->
+        <div class="flex items-center space-x-2 text-xs">
+          <button id="btn-clear-workspace" class="px-3 py-2 rounded-lg bg-surface-800 hover:bg-surface-750 border border-surface-700 text-slate-400 hover:text-slate-200 transition">
+            Bersihkan Workspace
+          </button>
+          <button id="btn-export-all-md" disabled class="px-3 py-2 rounded-lg bg-surface-800 hover:bg-surface-700 border border-surface-700 text-slate-400 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Export Markdown (.md)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== AGENT OUTPUT CARDS SECTION ==================== -->
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold tracking-wide uppercase text-slate-300 flex items-center space-x-2">
+          <span>Hasil Eksekusi Tim Agen</span>
+          <span id="pipeline-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-surface-800 text-slate-400 font-normal">
+            Status: Menunggu Brief
+          </span>
+        </h3>
+        
+        <!-- Output View Tabs -->
+        <div class="flex items-center space-x-1 bg-surface-850 p-1 rounded-lg border border-surface-750 text-xs">
+          <button id="tab-view-flow" class="px-3 py-1 rounded-md bg-brand-600 text-white font-medium transition">
+            Alur Berurutan (3 Agen)
+          </button>
+          <button id="tab-view-consolidated" class="px-3 py-1 rounded-md text-slate-400 hover:text-white transition">
+            Hasil Akhir Terpadu
+          </button>
+        </div>
+      </div>
+
+      <!-- Container: Sequential Flow Cards -->
+      <div id="container-sequential-outputs" class="space-y-4">
+        <!-- Rendered dynamically by app.js based on AGENTS_TEAM -->
+      </div>
+
+      <!-- Container: Consolidated Final Deliverable (Hidden by default) -->
+      <div id="container-consolidated-output" class="hidden bg-surface-850 rounded-2xl border border-surface-750 p-6 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-surface-750 pb-4">
+          <div>
+            <h4 class="text-lg font-bold text-white flex items-center space-x-2">
+              <span>🏆 Final Executive Deliverable Package</span>
+            </h4>
+            <p class="text-xs text-slate-400 mt-1">Kompilasi final yang telah diselaraskan oleh Creative Director & QA Lead siap dipresentasikan.</p>
+          </div>
+          <button id="btn-copy-consolidated" class="px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 border border-surface-700 text-xs font-semibold text-brand-300 hover:text-white transition flex items-center space-x-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+            </svg>
+            <span>Salin Seluruh Paket</span>
+          </button>
+        </div>
+        <div id="consolidated-rendered-content" class="markdown-body text-slate-200">
+          <p class="text-slate-500 italic">Jalankan orkestrasi pipeline terlebih dahulu untuk menghasilkan dokumen terpadu.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== GITHUB PAGES DEPLOYMENT GUIDE ==================== -->
+    <section id="github-deploy-info" class="bg-surface-850/60 rounded-2xl border border-surface-750 p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+          <svg class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>Arsitektur Statis & Cara Deploy ke GitHub Pages</span>
+        </h3>
+        <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">0% Server Cost • 100% Client-Side</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+        <div class="p-3.5 rounded-xl bg-surface-900 border border-surface-700/60 space-y-1.5">
+          <div class="font-bold text-white flex items-center space-x-1.5">
+            <span class="w-5 h-5 rounded-full bg-brand-600/30 text-brand-400 flex items-center justify-center font-mono text-xs">1</span>
+            <span>Push ke Repository GitHub</span>
+          </div>
+          <p class="text-slate-400">Push 4 file proyek (`index.html`, `agents-config.js`, `app.js`, `README.md`) ke repository GitHub publik atau privat.</p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-900 border border-surface-700/60 space-y-1.5">
+          <div class="font-bold text-white flex items-center space-x-1.5">
+            <span class="w-5 h-5 rounded-full bg-brand-600/30 text-brand-400 flex items-center justify-center font-mono text-xs">2</span>
+            <span>Aktifkan GitHub Pages</span>
+          </div>
+          <p class="text-slate-400">Buka menu <strong>Settings &gt; Pages</strong> di GitHub, pilih Source <strong>Deploy from a branch</strong>, pilih branch <strong>main</strong> folder <strong>/ (root)</strong>, lalu klik Save.</p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-900 border border-surface-700/60 space-y-1.5">
+          <div class="font-bold text-white flex items-center space-x-1.5">
+            <span class="w-5 h-5 rounded-full bg-brand-600/30 text-brand-400 flex items-center justify-center font-mono text-xs">3</span>
+            <span>Kustomisasi Agen Tanpa Build</span>
+          </div>
+          <p class="text-slate-400">Untuk menambah agen baru atau mengganti SOP, edit langsung file <code class="text-amber-300 font-mono">agents-config.js</code> di GitHub web editor. Perubahan langsung aktif!</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer class="border-t border-surface-750 bg-surface-850/80 text-slate-400 py-6 text-xs text-center">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span>AI Multi-Agent Studio Workspace</span>
+        <span>•</span>
+        <span>Murni HTML5, Tailwind CSS, & Vanilla JS ES Modules</span>
+      </div>
+      <div>
+        Keamanan BYOK: API Key hanya tersimpan di LocalStorage browser Anda dan tidak pernah dikirim ke server pihak ketiga.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== MODAL: API KEY SETUP ==================== -->
+  <div id="modal-api-key" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-surface-850 border border-surface-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="p-5 border-b border-surface-750 flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Konfigurasi Google Gemini API Key</h3>
+            <p class="text-xs text-slate-400">Bring Your Own Key (BYOK) - Tersimpan aman di LocalStorage</p>
+          </div>
+        </div>
+        <button id="btn-close-key-modal" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div>
+          <label for="input-api-key" class="block text-xs font-semibold text-slate-300 mb-1.5">
+            Gemini API Key
+          </label>
+          <div class="relative">
+            <input id="input-api-key" type="password" 
+              placeholder="AIzaSy..." 
+              class="w-full bg-surface-900 border border-surface-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono pr-10" />
+            <button id="btn-toggle-key-visibility" type="button" class="absolute right-3 top-2.5 text-slate-400 hover:text-white">
+              <svg id="icon-eye" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2">
+            Belum punya API Key? Dapatkan secara gratis melalui 
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-brand-400 hover:underline">Google AI Studio</a>.
+          </p>
+        </div>
+
+        <div class="p-3 bg-surface-900 rounded-xl border border-surface-700/60 text-xs text-slate-300 space-y-1">
+          <div class="font-semibold text-slate-200">ℹ️ Kebijakan Keamanan:</div>
+          <p class="text-slate-400 leading-relaxed">
+            Kunci API Anda tidak pernah dikirim ke backend server mana pun. Seluruh panggilan API langsung dilakukan dari browser Anda ke endpoint resmi <code class="text-indigo-300 font-mono">generativelanguage.googleapis.com</code>.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 bg-surface-900 border-t border-surface-750 flex items-center justify-between">
+        <button id="btn-clear-key" class="text-xs text-rose-400 hover:text-rose-300 font-medium">
+          Hapus Kunci
+        </button>
+        <div class="flex items-center space-x-2">
+          <button id="btn-cancel-key-modal" class="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg bg-surface-800 hover:bg-surface-750 transition">
+            Batal
+          </button>
+          <button id="btn-save-api-key" class="px-4 py-2 text-xs font-semibold text-white rounded-lg bg-brand-600 hover:bg-brand-500 transition shadow">
+            Simpan Kunci
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: TEAM CONFIGURATION INSPECTOR ==================== -->
+  <div id="modal-team-inspector" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-surface-850 border border-surface-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="p-5 border-b border-surface-750 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center space-x-2">
+            <span>👥 Konfigurasi Tim Agen (agents-config.js)</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Inspeksi SOP System Prompt & Instruksi Tugas untuk setiap agen</p>
+        </div>
+        <button id="btn-close-team-modal" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div id="team-inspector-content" class="p-5 space-y-4 overflow-y-auto flex-1">
+        <!-- Will be populated dynamically by app.js -->
+      </div>
+
+      <div class="p-4 bg-surface-900 border-t border-surface-750 flex items-center justify-between text-xs text-slate-400">
+        <span>Ubah file <code class="text-brand-300 font-mono">agents-config.js</code> di GitHub untuk modifikasi permanen.</span>
+        <button id="btn-dismiss-team-modal" class="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-surface-800 hover:bg-surface-700 transition">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- Application Orchestration Script (ES Module) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
